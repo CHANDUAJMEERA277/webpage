@@ -1,56 +1,157 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Student Information Page</title>
+    <title>Google Maps Live Tracking</title>
+    <style>
+        #map { height: 500px; width: 100%; }
+        #bus-info {
+            margin-top: 10px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            background: #f9f9f9;
+            font-size: 16px;
+        }
+        .info-item { margin-bottom: 5px; }
+    </style>
+
+    <!-- ✅ Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
 </head>
 <body>
-    
 
+    <h2>🚌 Admin Panel - Live Bus Tracking</h2>
+    <div id="map"></div>
 
-    <!-- Title and Logo -->
-    <table border="1" width="100%">
-        <tr>
-            <td><h2 >KG Reddy College of Engineering and Technology</h2></td>
-            <td align="right"><img src="c:\Users\chand\Downloads\download.jpg" alt="College Logo" width="60" height="60"></td>
-        </tr>
-    </table>
+    <!-- ✅ Bus Details & ETA -->
+    <div id="bus-info">
+        <h3>🚌 Bus Details</h3>
+        <div class="info-item"><strong>Bus Number:</strong> <span id="bus-number">Loading...</span></div>
+        <div class="info-item"><strong>Driver Name:</strong> <span id="driver-name">Loading...</span></div>
+        <div class="info-item"><strong>Route:</strong> <span id="bus-route">Loading...</span></div>
+        <div class="info-item"><strong>Speed:</strong> <span id="bus-speed">Loading...</span> km/h</div>
+        <div class="info-item"><strong>ETA:</strong> <span id="bus-eta">Calculating...</span></div>
+    </div>
 
-    <hr>
+    <script>
+        // ✅ Initialize Firebase (Replace with your Firebase credentials)
+        const firebaseConfig = {
+            apiKey: "AIzaSyCnnjs3cs9jtDLCRxVgorUFzPOjjYL00uc",
+            authDomain: "bustrack-856e8.firebaseapp.com",
+            databaseURL: "https://bustrack-856e8-default-rtdb.firebaseio.com",
+            projectId: "bustrack-856e8",
+            storageBucket: "bustrack-856e8.firebasestorage.app",
+            messagingSenderId: "723873560084",
+            appId: "1:723873560084:web:66e1ad38115f69e6775901",
+            measurementId: "G-P21JB00K7F"
+        };
 
-    <!-- Heading -->
-    <h3>Student Details</h3>
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const locationRef = database.ref("bus/location");
+        const busInfoRef = database.ref("bus/info");
+        const stopsRef = database.ref("bus/stops/busLocation"); // Stop location
 
-    <!-- Student Details & Photo -->
-    <table border="1" width="100%">
-        <tr>
-            <td width="70%">
-                <p><strong>Name:</strong> AJMEERA CHANDU</p>
-                <p><strong>Roll No:</strong> 22QM1A0502</p>
-                <p><strong>Course:</strong> B.Tech Computer Science</p>
-                <p><strong>Year:</strong> 3rd Year</p>
-            </td>
-            <td width="30%" align="center">
-                <img src="c:\Users\chand\Downloads\PHOTO.jpg" alt="Student Photo" width="132" height="170">
-            </td>
-        </tr>
-    </table>
+        let map, marker, infoWindow, busPath;
+        let previousLocations = [];
+        let busDetails = {};
+        let stopLocation = { lat: 0, lng: 0 };
 
-    <hr>
+        function initMap() {
+            map = new google.maps.Map(document.getElementById("map"), {
+                zoom: 15,
+                center: { lat: 17.4065, lng: 78.4772 } // Default starting point
+            });
 
-    <!-- College Details -->
-    <h3>College Details</h3>
-    <p><strong>College Name:</strong>  
-        <a href="https://kgr.ac.in/best-engineering-college-in-hyderabad/home-page-1-2/" target="_blank" >KG Reddy College of Engineering and Technology</a>  
-    </p>
-    <p><strong>Address:</strong>  
-        <a href="https://www.google.com/maps/dir/?api=1&destination=KG +Reddy+ College +of +Engineering +and +Technology,+Beside Moinabad Police Station,+ChilkurVillage,+ Moinabad Moinabad Mandal,+ Hyderabad, +Telangana 500075" 
-           target="_blank">
-           Beside Moinabad Police Station,ChilkurVillage, Moinabad Moinabad Mandal, Hyderabad, Telangana 500075
-        </a>
-    </p>
-    <p><strong>Contact:</strong> +91 90006 33008</p>
+            marker = new google.maps.Marker({
+                position: { lat: 17.4065, lng: 78.4772 },
+                map: map,
+                icon: {
+                    url: "https://maps.google.com/mapfiles/kml/shapes/bus.png",
+                    scaledSize: new google.maps.Size(50, 50)
+                }
+            });
+
+            infoWindow = new google.maps.InfoWindow();
+
+            marker.addListener("click", () => {
+                const content = `
+                    <strong>Bus Number:</strong> ${busDetails.number || "Loading..."}<br>
+                    <strong>Driver Name:</strong> ${busDetails.driver || "Loading..."}<br>
+                    <strong>Route:</strong> ${busDetails.route || "Loading..."}<br>
+                    <strong>Speed:</strong> ${busDetails.speed ? busDetails.speed + " km/h" : "Loading..."}<br>
+                    <strong>Last Location:</strong> (${marker.getPosition().lat().toFixed(5)}, ${marker.getPosition().lng().toFixed(5)})
+                `;
+                infoWindow.setContent(content);
+                infoWindow.open(map, marker);
+            });
+
+            busPath = new google.maps.Polyline({
+                path: [],
+                geodesic: true,
+                strokeColor: "#FF0000",
+                strokeOpacity: 1.0,
+                strokeWeight: 3
+            });
+            busPath.setMap(map);
+
+            locationRef.on("value", (snapshot) => {
+                const data = snapshot.val();
+                if (data && data.lat && data.lng) {
+                    const newPos = { lat: Number(data.lat), lng: Number(data.lng) };
+                    marker.setPosition(newPos);
+                    map.setCenter(newPos);
+
+                    previousLocations.push(new google.maps.LatLng(newPos.lat, newPos.lng));
+                    busPath.setPath(previousLocations);
+
+                    busDetails.speed = data.speed || 0;
+                    document.getElementById("bus-speed").innerText = busDetails.speed;
+
+                    calculateETA(newPos.lat, newPos.lng, busDetails.speed);
+                }
+            });
+
+            busInfoRef.on("value", (snapshot) => {
+                busDetails = snapshot.val() || {};
+                document.getElementById("bus-number").innerText = busDetails.number || "N/A";
+                document.getElementById("driver-name").innerText = busDetails.driver || "N/A";
+                document.getElementById("bus-route").innerText = busDetails.route || "N/A";
+            });
+
+            stopsRef.on("value", (snapshot) => {
+                const stopData = snapshot.val();
+                if (stopData) {
+                    stopLocation.lat = Number(stopData.latitude);
+                    stopLocation.lng = Number(stopData.longitude);
+                }
+            });
+        }
+
+        function calculateETA(busLat, busLng, speed) {
+            if (stopLocation.lat === 0 || stopLocation.lng === 0 || speed <= 0) {
+                document.getElementById("bus-eta").innerText = "N/A";
+                return;
+            }
+
+            const R = 6371; // Radius of Earth in km
+            const dLat = (stopLocation.lat - busLat) * (Math.PI / 180);
+            const dLng = (stopLocation.lng - busLng) * (Math.PI / 180);
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                      Math.cos(busLat * (Math.PI / 180)) * Math.cos(stopLocation.lat * (Math.PI / 180)) *
+                      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            const distance = R * c; // Distance in km
+
+            const timeInHours = distance / speed;
+            const timeInMinutes = Math.round(timeInHours * 60);
+
+            document.getElementById("bus-eta").innerText = `${timeInMinutes} mins`;
+        }
+    </script>
+
+    <!-- ✅ Google Maps API -->
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDKetpuLz5Uyg3otB58khOvTVMGUoGKHcw&callback=initMap"></script>
 
 </body>
 </html>

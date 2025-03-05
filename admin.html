@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Admin Panel - Live Bus Tracking</title>
+    <style>
+        #map { height: 500px; width: 100%; }
+        #bus-container { margin-top: 20px; }
+        .bus-item { border: 1px solid #ddd; padding: 10px; margin: 5px 0; }
+    </style>
+
+    <!-- ✅ Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+</head>
+<body>
+
+    <h2>🚌 Admin Panel - Live Bus Tracking</h2>
+    <div id="map"></div>
+
+    <!-- ✅ Bus List Display -->
+    <div id="bus-container">
+        <h3>🚌 Bus List</h3>
+        <div id="bus-list">Loading...</div>
+    </div>
+
+    <script>
+        // ✅ Initialize Firebase (Replace with your credentials)
+        const firebaseConfig = {
+            apiKey: "AIzaSyCnnjs3cs9jtDLCRxVgorUFzPOjjYL00uc",
+            authDomain: "bustrack-856e8.firebaseapp.com",
+            databaseURL: "https://bustrack-856e8-default-rtdb.firebaseio.com",
+            projectId: "bustrack-856e8",
+            storageBucket: "bustrack-856e8.firebasestorage.app",
+            messagingSenderId: "723873560084",
+            appId: "1:723873560084:web:66e1ad38115f69e6775901",
+            measurementId: "G-P21JB00K7F"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const busInfoRef = database.ref("bus/info");
+        const busLocationRef = database.ref("bus/location");
+
+        let map;
+        let busMarkers = {}; // Store bus markers
+
+        function initMap() {
+            map = new google.maps.Map(document.getElementById("map"), {
+                zoom: 14,
+                center: { lat: 17.74, lng: 79.74 }
+            });
+
+            // ✅ Listen for live updates
+            busLocationRef.on("value", (snapshot) => {
+                const location = snapshot.val();
+                if (location && location.lat && location.lng) {
+                    updateBusMarker("bus1", location.lat, location.lng);
+                }
+            });
+
+            busInfoRef.on("value", (snapshot) => {
+                const info = snapshot.val();
+                if (info) {
+                    document.getElementById("bus-list").innerHTML = `
+                        <div class="bus-item">
+                            <strong>Bus Number:</strong> ${info.number} <br>
+                            <strong>Driver:</strong> ${info.driver} <br>
+                            <strong>Route:</strong> ${info.route} <br>
+                            <strong>Speed:</strong> ${info.speed} km/h
+                        </div>
+                    `;
+                }
+            });
+        }
+
+        function updateBusMarker(busId, lat, lng) {
+            const position = { lat: Number(lat), lng: Number(lng) };
+
+            if (busMarkers[busId]) {
+                busMarkers[busId].setPosition(position);
+            } else {
+                busMarkers[busId] = new google.maps.Marker({
+                    position,
+                    map: map,
+                    title: `Bus ${busId}`
+                });
+            }
+        }
+    </script>
+
+    <!-- ✅ Google Maps API -->
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDKetpuLz5Uyg3otB58khOvTVMGUoGKHcw&callback=initMap"></script>
+
+</body>
+</html>

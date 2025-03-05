@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Student Registration</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            width: 300px;
+        }
+        input, button {
+            width: 90%;
+            margin: 10px 0;
+            padding: 10px;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+        }
+        .modal-content {
+            background: white;
+            padding: 20px;
+            margin: 20% auto;
+            width: 300px;
+            text-align: center;
+            border-radius: 10px;
+        }
+    </style>
+
+    <!-- ✅ Load Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+</head>
+<body>
+
+    <div class="container">
+        <h2>Student Registration</h2>
+        <input type="email" id="email" placeholder="Enter Email" required>
+        <input type="password" id="password" placeholder="Enter Password" required>
+        <button onclick="register()">Register</button>
+        <p>Already have an account? <a href="login.html">Sign In</a></p>
+    </div>
+
+    <!-- ✅ Success Modal -->
+    <div id="successModal" class="modal">
+        <div class="modal-content">
+            <p>Registration Successful! You can now sign in.</p>
+            <button onclick="closeModal()">OK</button>
+        </div>
+    </div>
+
+    <script>
+        // ✅ Initialize Firebase (Replace with your credentials)
+        const firebaseConfig = {
+            apiKey: "AIzaSyCnnjs3cs9jtDLCRxVgorUFzPOjjYL00uc",
+            authDomain: "bustrack-856e8.firebaseapp.com",
+            databaseURL: "https://bustrack-856e8-default-rtdb.firebaseio.com",
+            projectId: "bustrack-856e8",
+            storageBucket: "bustrack-856e8.firebasestorage.app",
+            messagingSenderId: "723873560084",
+            appId: "1:723873560084:web:66e1ad38115f69e6775901",
+            measurementId: "G-P21JB00K7F"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+
+        function register() {
+            const email = document.getElementById("email").value;
+            const password = document.getElementById("password").value;
+
+            auth.createUserWithEmailAndPassword(email, password)
+                .then((userCredential) => {
+                    // ✅ Show success modal
+                    document.getElementById("successModal").style.display = "block";
+                })
+                .catch((error) => {
+                    alert("Error: " + error.message);
+                });
+        }
+
+        function closeModal() {
+            document.getElementById("successModal").style.display = "none";
+            window.location.href = "login.html"; // Redirect to login page
+        }
+    </script>
+
+</body>
+</html>
